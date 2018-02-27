@@ -1,643 +1,877 @@
-﻿//https://lisk.io/documentation?i=lisk-docs/APIReference
-//Author: Allen Byron Penner
-//TODO: fix the way errors are handled in http methods
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Coinigy.API.Responses;
+
 using Newtonsoft.Json;
 
 namespace Coinigy.API
 {
-    public class CoinigyApi
+    public partial class CoinigyApi
     {
-        public CoinigyApi(string api_key, string api_secret, string serverBaseUrl = "https://api.coinigy.com/api/v1/",
-            string userAgent =
-                "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36")
+        //https://lisk.io/documentation?i=lisk-docs/APIReference
+        //Author: Allen Byron Penner
+        //TODO: fix the way errors are handled in http methods
+
+        public enum MarketDataType { history, asks, bids, orders, all, COUNT }
+
+        public CoinigyApi(string api_key, string api_secret) : this(api_key, api_secret, DefaultBaseUrl, DefaultUserAgent) { }
+        public CoinigyApi(string api_key, string api_secret, string serverBaseUrl, string userAgent)
         {
             User_Agent = userAgent;
             Server_Url = serverBaseUrl;
-            Api_Key = api_key;
+            _key = api_key;
             Api_Secret = api_secret;
         }
 
-        public string User_Agent { get; set; }
-        public string Server_Url { get; set; }
-
-        private string Api_Key { get; }
-
-        private string Api_Secret { get; }
-
-        public userInfo_response UserInfo()
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class BaseResponse
         {
-            var url = "userInfo";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<userInfo_response>(gr);
+            public string err_msg;
+            public string err_num;
         }
 
-        public async Task<userInfo_response> UserInfoAsync()
+        /// <summary>
+        /// Accounts at Coinigy
+        /// </summary>
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Accounts : BaseResponse
         {
-            var url = "userInfo";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<userInfo_response>(gr);
-        }
+            public List<ExchangeAccount> data;
+            public List<object> notifications;
 
-        public activity_response Activity()
-        {
-            var url = "activity";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<activity_response>(gr);
-        }
-
-        public async Task<activity_response> ActivityAsync()
-        {
-            var url = "activity";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<activity_response>(gr);
-        }
-
-        public accounts_response Accounts()
-        {
-            var url = "accounts";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<accounts_response>(gr);
-        }
-
-        public async Task<accounts_response> AccountsAsync()
-        {
-            var url = "accounts";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<accounts_response>(gr);
-        }
-
-        public balances_response Balances(bool show_nils = false, string auth_ids = "")
-        {
-            var url = "balances";
-            var pd = new List<KeyValuePair<string, string>>
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class ExchangeAccount
             {
-                new KeyValuePair<string, string>("show_nils", Convert.ToInt32(show_nils).ToString()),
-                new KeyValuePair<string, string>("auth_ids", auth_ids)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<balances_response>(gr);
+                public string auth_active;
+                public string auth_id;
+                public string auth_key;
+                public string auth_nickname;
+                public string auth_optional1;
+                public string auth_secret;
+                public string auth_trade;
+                public string auth_updated;
+                public string exch_id;
+                public string exch_name;
+                public string exch_trade_enabled;
+            }
         }
 
-        public async Task<balances_response> BalancesAsync(bool show_nils = false, string auth_ids = "")
+        /// <summary>
+        /// Accounts
+        /// </summary>
+        public Accounts Accts => GetAccounts();
+        private static readonly string _accounts = "accounts";
+        public Accounts GetAccounts() => Request<Accounts>(_accounts);
+        public Task<Accounts> GetAsync() => RequestAsync<Accounts>(_accounts);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Activity : BaseResponse
         {
-            var url = "balances";
-            var pd = new List<KeyValuePair<string, string>>
+            public List<ActivityNotification> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class ActivityNotification
             {
-                new KeyValuePair<string, string>("show_nils", Convert.ToInt32(show_nils).ToString()),
-                new KeyValuePair<string, string>("auth_ids", auth_ids)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<balances_response>(gr);
+                public string notification_style;
+                public string notification_time_added;
+                public string notification_title_vars;
+                public string notification_type_message;
+                public string notification_type_title;
+                public string notification_vars;
+            }
         }
 
-        public balanceHistory_response BalanceHistory(string date = "")
+        /// <summary>
+        /// Activity
+        /// </summary>
+        public Activity AcctActivity => GetActivity();
+        private static readonly string _activity = "activity";
+        public Activity GetActivity() => Request<Activity>(_activity);
+        public Task<Activity> GetActivityAsync() => RequestAsync<Activity>(_activity);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Alerts : BaseResponse
         {
-            if (string.IsNullOrEmpty(date))
-                date = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            var url = "balanceHistory";
-            var pd = new List<KeyValuePair<string, string>>
+            public AlertData data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class AlertData
             {
-                new KeyValuePair<string, string>("date", date)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<balanceHistory_response>(gr);
+                public List<AlertHistory> alert_history;
+                public List<OpenAlert> open_alerts;
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class AlertHistory
+                {
+                    public string alert_history_id;
+                    public string alert_note;
+                    public string alert_price;
+                    public string display_name;
+                    public string exch_name;
+                    public string mkt_name;
+                    public string @operator;
+                    public string operator_text;
+                    public string price;
+                    public string timestamp;
+                }
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class OpenAlert
+                {
+                    public string alert_added;
+                    public string alert_id;
+                    public string alert_note;
+                    public string display_name;
+                    public string exch_code;
+                    public string exch_name;
+                    public string mkt_name;
+                    public string @operator;
+                    public string operator_text;
+                    public string price;
+                }
+            }
         }
 
-        public async Task<balanceHistory_response> BalanceHistoryAsync(string date = "")
+        public Alerts PriceAlerts => GetAlerts();
+        private static readonly string _alerts = "alerts";
+        public Alerts GetAlerts() => Request<Alerts>(_alerts);
+        public Task<Alerts> GetAlertsAsync() => RequestAsync<Alerts>(_alerts);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Balance
         {
-            if (string.IsNullOrEmpty(date))
-                date = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            var url = "balanceHistory";
-            var pd = new List<KeyValuePair<string, string>>
+            public string balance_amount_avail;
+            public string balance_amount_held;
+            public string balance_amount_total;
+            public string balance_curr_code;
+            public string btc_balance;
+            public string last_price;
+        }
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Balances
+        {
+            public List<Balance> data;
+            public List<object> notifications;
+        }
+
+        public Balances Bals => GetBalances();
+        private static readonly string _balances = "balances";
+        public Balances GetBalances() => GetBalances(false);
+        public Balances GetBalances(bool show_nils) => GetBalances(show_nils, "");
+        public Balances GetBalances(bool show_nils, string auth_ids)
+            => Request<Balances>(_balances, new KeyValuePair<string, string>[] { KVP("show_nils", show_nils), KVP("auth_ids", auth_ids) });
+        public Task<Balances> GetBalancesAsync() => GetBalancesAsync(false);
+        public Task<Balances> GetBalancesAsync(bool show_nils) => GetBalancesAsync(show_nils, "");
+        public Task<Balances> GetBalancesAsync(bool show_nils, string auth_ids)
+            => RequestAsync<Balances>(_balances, new KeyValuePair<string, string>[] { KVP("show_nils", show_nils), KVP("auth_ids", auth_ids) });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class BalanceHistory : BaseResponse
+        {
+            public BalanceHistoryList data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class BalanceHistoryList
             {
-                new KeyValuePair<string, string>("date", date)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<balanceHistory_response>(gr);
+                public List<BalanceHistory> balance_history;
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class BalanceHistory
+                {
+                    public string auth_id;
+                    public string balance_amount_avail;
+                    public string balance_amount_held;
+                    public string balance_amount_total;
+                    public string balance_curr_code;
+                    public string balance_date;
+                    public string btc_value;
+                    public string timestamp;
+                }
+            }
         }
 
-        public orders_response Orders()
+        public BalanceHistory BalHist => GetBalanceHistory();
+        private static readonly string _balanceHistory = "balanceHistory";
+        public BalanceHistory GetBalanceHistory() => GetBalanceHistory(null);
+        public BalanceHistory GetBalanceHistory(string date) => Request<BalanceHistory>(_balanceHistory, KVP("date", GetDate(date)));
+        public Task<BalanceHistory> GetBalanceHistoryAsync() => GetBalanceHistoryAsync(null);
+        public Task<BalanceHistory> GetBalanceHistoryAsync(string date) => RequestAsync<BalanceHistory>(_balanceHistory, KVP("date", GetDate(date)));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class UserWatchList : BaseResponse
         {
-            var url = "orders";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<orders_response>(gr);
+            public List<WatchedItem> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class WatchedItem
+            {
+                public string btc_volume;
+                public string current_volume;
+                public string exch_code;
+                public string exch_name;
+                public string exchmkt_id;
+                public string fiat_market;
+                public string high_trade;
+                public string last_price;
+                public string low_trade;
+                public string mkt_name;
+                public string prev_price;
+                public string primary_currency_name;
+                public string secondary_currency_name;
+                public string server_time;
+            }
         }
 
-        public async Task<orders_response> OrdersAsync()
+        public UserWatchList WatchList => GetUserWatchList();
+        private static readonly string _userWatchList = "userWatchList";
+        public UserWatchList GetUserWatchList() => Request<UserWatchList>(_userWatchList);
+        public Task<UserWatchList> GetUserWatchListAsync() => RequestAsync<UserWatchList>(_userWatchList);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class OrdersResponse : BaseResponse
         {
-            var url = "orders";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<orders_response>(gr);
+            public Orders data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class Orders
+            {
+                public List<OpenOrder> open_orders;
+                public List<OrderHistory> order_history;
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class OpenOrder
+                {
+                    public string auth_id;
+                    public string auth_nickname;
+                    public string display_name;
+                    public string exch_code;
+                    public string exch_name;
+                    public string foreign_order_id;
+                    public string limit_price;
+                    public string mkt_name;
+                    public string @operator;
+                    public string order_id;
+                    public string order_price_type;
+                    public string order_status;
+                    public string order_time;
+                    public string order_type;
+                    public string price_type_id;
+                    public string quantity;
+                    public string quantity_remaining;
+                    public string stop_price;
+                }
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class OrderHistory
+                {
+                    public string auth_id;
+                    public string auth_nickname;
+                    public string display_name;
+                    public string exch_code;
+                    public string exch_id;
+                    public string exch_name;
+                    public string executed_price;
+                    public string last_updated;
+                    public string limit_price;
+                    public string mkt_name;
+                    public string order_id;
+                    public string order_price_type;
+                    public string order_status;
+                    public string order_time;
+                    public string order_type;
+                    public string quantity;
+                    public string quantity_remaining;
+                    public string unixtime;
+                }
+            }
         }
 
-        public alerts_response Alerts()
+        public OrdersResponse Orders => GetOrders();
+        private static readonly string _orders = "orders";
+        public OrdersResponse GetOrders() => Request<OrdersResponse>(_orders);
+        public Task<OrdersResponse> GetOrdersAsync() => RequestAsync<OrdersResponse>(_orders);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class NewsFeed : BaseResponse
         {
-            var url = "alerts";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<alerts_response>(gr);
+            public List<NewsItem> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class NewsItem
+            {
+                public string date_field;
+                public string feed_description;
+                public string feed_enabled;
+                public string feed_id;
+                public string feed_image;
+                public string feed_name;
+                public string feed_url;
+                public string id;
+                public string pubDate;
+                public string published_date;
+                public string timestamp;
+                public string title;
+                public string title_field;
+                public string url;
+                public string url_field;
+            }
         }
 
-        public async Task<alerts_response> AlertsAsync()
+        public NewsFeed News => GetNewsFeed();
+        private static readonly string _newsFeed = "newsFeed";
+        public NewsFeed GetNewsFeed() => Request<NewsFeed>(_newsFeed);
+        public Task<NewsFeed> GetNewsFeedAsync() => RequestAsync<NewsFeed>(_newsFeed);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class OrderTypesResponse : BaseResponse
         {
-            var url = "alerts";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<alerts_response>(gr);
+            public OrderTypes data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class OrderTypes
+            {
+                public List<OrderType> order_types;
+                public List<PriceType> price_types;
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class OrderType
+                {
+                    public string name;
+                    public string order;
+                    public string order_type_id;
+                }
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class PriceType
+                {
+                    public string name;
+                    public string order;
+                    public string price_type_id;
+                }
+            }
         }
 
-        public userWatchList_response UserWatchList()
+        public OrderTypesResponse OrderTypes => GetOrderTypes();
+        private static readonly string _orderTypes = "orderTypes";
+        public OrderTypesResponse GetOrderTypes() => Request<OrderTypesResponse>(_orderTypes);
+        public Task<OrderTypesResponse> GetOrderTypesAsync() => RequestAsync<OrderTypesResponse>(_orderTypes);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class UserData : BaseResponse
         {
-            var url = "userWatchList";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<userWatchList_response>(gr);
+            public UserInfo data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class UserInfo
+            {
+                public string active;
+                public string chat_enabled;
+                public string chat_nick;
+                public string city;
+                public string company;
+                public string country;
+                public string created_on;
+                public string custom_ticker;
+                public string email;
+                public string first_name;
+                public string last_active;
+                public string last_login;
+                public string last_name;
+                public string newsletter;
+                public string phone;
+                public string pref_alert_email;
+                public string pref_alert_mobile;
+                public string pref_alert_sms;
+                public bool pref_app_device_id;
+                public string pref_balance_email;
+                public string pref_referral_code;
+                public string pref_subscription_expires;
+                public string pref_trade_email;
+                public string pref_trade_mobile;
+                public string pref_trade_sms;
+                public string referral_balance;
+                public string state;
+                public string street1;
+                public string street2;
+                public string subscription_status;
+                public string ticker_enabled;
+                public string ticker_indicator_time_type;
+                public string two_factor;
+                public string zip;
+            }
         }
 
-        public async Task<userWatchList_response> UserWatchListAsync()
+        public UserData UserInfo => GetUserInfo();
+        private static readonly string _userInfo = "userInfo";
+        public UserData GetUserInfo() => Request<UserData>(_userInfo);
+        public Task<UserData> GetAsync(CoinigyApi api) => api.RequestAsync<UserData>(_userInfo);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class Notification
         {
-            var url = "userWatchList";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<userWatchList_response>(gr);
+            public string notification_id;
+            public string notification_pinned;
+            public string notification_sound;
+            public string notification_sound_id;
+            public string notification_style;
+            public string notification_title_vars;
+            public string notification_type_message;
+            public string notification_type_title;
+            public string notification_vars;
         }
 
-        public newsFeed_response NewsFeed()
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class UpdateUserResponse : BaseResponse
         {
-            var url = "newsFeed";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<newsFeed_response>(gr);
+            public object data;
+            public List<Notification> notifications;
+
         }
 
-        public async Task<newsFeed_response> NewsFeedAsync()
-        {
-            var url = "newsFeed";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<newsFeed_response>(gr);
-        }
-
-        public updateUser_response UpdateUser(string first_name, string last_name, string company, string phone,
+        private static readonly string _updateUser = "updateUser";
+        public UpdateUserResponse UpdateUser(string first_name, string last_name, string company, string phone,
             string street1, string street2, string city, string state, string zip, string country)
-        {
-            var url = "updateUser";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("first_name", first_name),
-                new KeyValuePair<string, string>("last_name", last_name),
-                new KeyValuePair<string, string>("last_name", company),
-                new KeyValuePair<string, string>("last_name", phone),
-                new KeyValuePair<string, string>("last_name", street1),
-                new KeyValuePair<string, string>("last_name", street2),
-                new KeyValuePair<string, string>("last_name", city),
-                new KeyValuePair<string, string>("last_name", state),
-                new KeyValuePair<string, string>("last_name", zip),
-                new KeyValuePair<string, string>("last_name", country)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updateUser_response>(gr);
-        }
-
-        public async Task<updateUser_response> UpdateUserAsync(string first_name, string last_name, string company,
+            => Request<UpdateUserResponse>(_updateUser, new KeyValuePair<string, string>[] {
+                KVP("first_name", first_name),
+                KVP("last_name", last_name),
+                KVP("company", company),
+                KVP("phone", phone),
+                KVP("street1", street1),
+                KVP("street2", street2),
+                KVP("city", city),
+                KVP("state", state),
+                KVP("zip", zip),
+                KVP("country", country)
+            });
+        public Task<UpdateUserResponse> UpdateUserAsync(string first_name, string last_name, string company,
             string phone, string street1, string street2, string city, string state, string zip, string country)
+            => RequestAsync<UpdateUserResponse>(_updateUser, new KeyValuePair<string, string>[] {
+                KVP("first_name", first_name),
+                KVP("last_name", last_name),
+                KVP("company", company),
+                KVP("phone", phone),
+                KVP("street1", street1),
+                KVP("street2", street2),
+                KVP("city", city),
+                KVP("state", state),
+                KVP("zip", zip),
+                KVP("country", country)
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class UpdatePrefsResponse : BaseResponse
         {
-            var url = "updateUser";
-            var pd = new List<KeyValuePair<string, string>>
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _updatePrefs = "updatePrefs";
+        public UpdatePrefsResponse UpdatePrefs(bool alert_email, bool alert_sms, bool trade_email, bool trade_sms, bool balance_email)
+            => Request<UpdatePrefsResponse>(_updatePrefs, new KeyValuePair<string, string>[] {
+                KVP("alert_email", alert_email),
+                KVP("alert_sms", alert_sms),
+                KVP("trade_email", trade_email),
+                KVP("trade_sms", trade_sms),
+                KVP("balance_email", balance_email)
+            });
+        public Task<UpdatePrefsResponse> UpdatePrefsAsync(bool alert_email, bool alert_sms, bool trade_email, bool trade_sms, bool balance_email)
+            => RequestAsync<UpdatePrefsResponse>(_updatePrefs, new KeyValuePair<string, string>[] {
+                KVP("alert_email", alert_email),
+                KVP("alert_sms", alert_sms),
+                KVP("trade_email", trade_email),
+                KVP("trade_sms", trade_sms),
+                KVP("balance_email", balance_email)
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class UpdateTickersResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _updateTickers = "updateTickers";
+        public UpdateTickersResponse UpdateTickers(string exch_mkt_ids) => Request<UpdateTickersResponse>(_updateTickers, KVP("exch_mkt_ids", exch_mkt_ids));
+        public Task<UpdateTickersResponse> UpdateTickersAsync(string exch_mkt_ids) => RequestAsync<UpdateTickersResponse>(_updateTickers, KVP("exch_mkt_ids", exch_mkt_ids));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class RefreshBalanceResponse : BaseResponse
+        {
+            public List<Balance> data;
+            public List<object> notifications;
+        }
+
+        private static readonly string _refreshBalance = "refreshBalance";
+        public RefreshBalanceResponse RefreshBalance(string auth_id) => Request<RefreshBalanceResponse>(_refreshBalance, KVP("auth_id", auth_id));
+        public Task<RefreshBalanceResponse> RefreshBalanceAsync(string auth_id) => RequestAsync<RefreshBalanceResponse>(_refreshBalance, KVP("auth_id", auth_id));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class AddAlertResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _addAlert = "addAlert";
+        public AddAlertResponse AddAlert(string exch_code, string market_name, string alert_price) => AddAlert(exch_code, market_name, alert_price, "");
+        public AddAlertResponse AddAlert(string exch_code, string market_name, string alert_price, string alert_note) => Request<AddAlertResponse>(_addAlert,
+            new KeyValuePair<string, string>[] {
+                KVP("exch_code", exch_code),
+                KVP("market_name", market_name),
+                KVP("alert_price", alert_price),
+                KVP("alert_note", alert_note)
+            });
+        public Task<AddAlertResponse> AddAlertAsync(string exch_code, string market_name, string alert_price) => AddAlertAsync(exch_code, market_name, alert_price, "");
+        public Task<AddAlertResponse> AddAlertAsync(string exch_code, string market_name, string alert_price, string alert_note) => RequestAsync<AddAlertResponse>(_addAlert,
+            new KeyValuePair<string, string>[] {
+                KVP("exch_code", exch_code),
+                KVP("market_name", market_name),
+                KVP("alert_price", alert_price),
+                KVP("alert_note", alert_note)
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class DeleteAlertResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _deleteAlert = "deleteAlert";
+        public DeleteAlertResponse DeleteAlert(string alert_id) => Request<DeleteAlertResponse>(_deleteAlert, KVP("alert_id", alert_id));
+        public Task<DeleteAlertResponse> DeleteAlertAsync(string alert_id) => RequestAsync<DeleteAlertResponse>(_deleteAlert, KVP("alert_id", alert_id));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class AddApiKeyResponse : BaseResponse
+        {
+            public long data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _addApiKey = "addApiKey";
+        public AddApiKeyResponse AddApiKey(string api_key, string api_secret, string api_exch_id, string api_nickname) => Request<AddApiKeyResponse>(_addApiKey,
+            new KeyValuePair<string, string>[] {
+                KVP("api_key", api_key),
+                KVP("api_secret", api_secret),
+                KVP("api_exch_id", api_exch_id),
+                KVP("api_nickname", api_nickname)
+            });
+        public Task<AddApiKeyResponse> AddApiKeyAsync(string api_key, string api_secret, string api_exch_id, string api_nickname) => RequestAsync<AddApiKeyResponse>(_addApiKey,
+            new KeyValuePair<string, string>[] {
+                KVP("api_key", api_key),
+                KVP("api_secret", api_secret),
+                KVP("api_exch_id", api_exch_id),
+                KVP("api_nickname", api_nickname)
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class DeleteApiKeyResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _deleteApiKey = "deleteApiKey";
+        public DeleteApiKeyResponse DeleteApiKey(string auth_id) => Request<DeleteApiKeyResponse>(_deleteApiKey, KVP("auth_id", auth_id));
+        public Task<DeleteApiKeyResponse> DeleteApiKeyAsync(string auth_id) => RequestAsync<DeleteApiKeyResponse>(_deleteApiKey, KVP("auth_id", auth_id));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class ActivateApiKey : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _enApiKey = "activateApiKey";
+        public ActivateApiKey EnableApiKey(string auth_id) => EnableApiKey(auth_id, true);
+        public ActivateApiKey EnableApiKey(string auth_id, bool auth_active) => Request<ActivateApiKey>(_enApiKey,
+            new KeyValuePair<string, string>[] { KVP("auth_id", auth_id), KVP("auth_active", auth_id) });
+        public Task<ActivateApiKey> ActivateApiKeyAsync(string auth_id) => ActivateApiKeyAsync(auth_id, true);
+        public Task<ActivateApiKey> ActivateApiKeyAsync(string auth_id, bool auth_active) => RequestAsync<ActivateApiKey>(_enApiKey,
+            new KeyValuePair<string, string>[] { KVP("auth_id", auth_id), KVP("auth_active", auth_id) });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class ActivateTradingKeyResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _activateTradingKey = "activateTradingKey";
+        public ActivateTradingKeyResponse ActivateTradingKey(string auth_id) => ActivateTradingKey(auth_id, true);
+        public ActivateTradingKeyResponse ActivateTradingKey(string auth_id, bool auth_trade) => Request<ActivateTradingKeyResponse>(_activateTradingKey,
+            new KeyValuePair<string, string>[] { KVP("auth_id", auth_id), KVP("auth_trade", Convert.ToInt32(auth_id)) });
+        public Task<ActivateTradingKeyResponse> ActivateTradingKeyAsync(string auth_id) => ActivateTradingKeyAsync(auth_id, true);
+        public Task<ActivateTradingKeyResponse> ActivateTradingKeyAsync(string auth_id, bool auth_trade) => RequestAsync<ActivateTradingKeyResponse>(_activateTradingKey,
+            new KeyValuePair<string, string>[] { KVP("auth_id", auth_id), KVP("auth_trade", Convert.ToInt32(auth_id)) });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class AddOrderResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _addOrder = "addOrder";
+        public AddOrderResponse AddOrder(int auth_id, int exch_id, int mkt_id, int order_type_id, int price_type_id, decimal limit_price, decimal order_quantity)
+            => Request<AddOrderResponse>(_addOrder, new KeyValuePair<string, string>[] {
+                KVP("auth_id", auth_id),
+                KVP("exch_id", exch_id),
+                KVP("mkt_id", mkt_id),
+                KVP("order_type_id", order_type_id),
+                KVP("price_type_id", price_type_id),
+                KVP("limit_price", limit_price),
+                KVP("order_quantity", order_quantity)
+            });
+        public Task<AddOrderResponse> AddOrderAsync(int auth_id, int exch_id, int mkt_id, int order_type_id, int price_type_id, decimal limit_price, decimal order_quantity)
+            => RequestAsync<AddOrderResponse>(_addOrder, new KeyValuePair<string, string>[] {
+                KVP("auth_id", auth_id),
+                KVP("exch_id", exch_id),
+                KVP("mkt_id", mkt_id),
+                KVP("order_type_id", order_type_id),
+                KVP("price_type_id", price_type_id),
+                KVP("limit_price", limit_price),
+                KVP("order_quantity", order_quantity)
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class CancelOrderResponse : BaseResponse
+        {
+            public object data;
+            public List<Notification> notifications;
+        }
+
+        private static readonly string _cancelOrder = "cancelOrder";
+        public CancelOrderResponse CancelOrder(int internal_order_id) => Request<CancelOrderResponse>(_cancelOrder,
+            new KeyValuePair<string, string>[] { KVP("internal_order_id", internal_order_id) });
+        public Task<CancelOrderResponse> CancelOrderAsync(int internal_order_id) => RequestAsync<CancelOrderResponse>(_cancelOrder,
+            new KeyValuePair<string, string>[] { KVP("internal_order_id", internal_order_id) });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class ExchangesResponse : BaseResponse
+        {
+            public List<Exchange> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class Exchange
             {
-                new KeyValuePair<string, string>("first_name", first_name),
-                new KeyValuePair<string, string>("last_name", last_name),
-                new KeyValuePair<string, string>("last_name", company),
-                new KeyValuePair<string, string>("last_name", phone),
-                new KeyValuePair<string, string>("last_name", street1),
-                new KeyValuePair<string, string>("last_name", street2),
-                new KeyValuePair<string, string>("last_name", city),
-                new KeyValuePair<string, string>("last_name", state),
-                new KeyValuePair<string, string>("last_name", zip),
-                new KeyValuePair<string, string>("last_name", country)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updateUser_response>(gr);
+                public string exch_balance_enabled;
+                public string exch_code;
+                public string exch_fee;
+                public string exch_id;
+                public string exch_name;
+                public string exch_trade_enabled;
+                public string exch_url;
+            }
         }
 
-        public updatePrefs_response UpdatePrefs(bool alert_email, bool alert_sms, bool trade_email, bool trade_sms,
-            bool balance_email)
+        public ExchangesResponse Exchanges => GetExchanges();
+        private static readonly string _exchanges = "exchanges";
+        public ExchangesResponse GetExchanges() => Request<ExchangesResponse>(_exchanges);
+        public Task<ExchangesResponse> GetExchangesAsync() => RequestAsync<ExchangesResponse>(_exchanges);
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class MarketsResponse : BaseResponse
         {
-            var url = "updatePrefs";
-            var pd = new List<KeyValuePair<string, string>>
+            public List<Market> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class Market
             {
-                new KeyValuePair<string, string>("alert_email", Convert.ToInt32(alert_email).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(alert_sms).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(trade_email).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(trade_sms).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(balance_email).ToString())
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updatePrefs_response>(gr);
+                public string exch_code;
+                public string exch_id;
+                public string exch_name;
+                public string exchmkt_id;
+                public string mkt_id;
+                public string mkt_name;
+            }
         }
 
-        public async Task<updatePrefs_response> UpdatePrefsAsync(bool alert_email, bool alert_sms, bool trade_email,
-            bool trade_sms, bool balance_email)
+        private static readonly string _markets = "markets";
+        public MarketsResponse Markets(string exchange_code) => Request<MarketsResponse>(_markets, KVP("exchange_code", exchange_code));
+        public Task<MarketsResponse> MarketsAsync(string exchange_code) => RequestAsync<MarketsResponse>(_markets, KVP("exchange_code", exchange_code));
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class DataResponse : BaseResponse
         {
-            var url = "updatePrefs";
-            var pd = new List<KeyValuePair<string, string>>
+            public Data data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class Data
             {
-                new KeyValuePair<string, string>("alert_email", Convert.ToInt32(alert_email).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(alert_sms).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(trade_email).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(trade_sms).ToString()),
-                new KeyValuePair<string, string>("last_name", Convert.ToInt32(balance_email).ToString())
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updatePrefs_response>(gr);
+                public List<DataAsk> asks;
+                public List<DataBid> bids;
+                public string exch_code;
+                public List<DataHistory> history;
+                public string primary_curr_code;
+                public string secondary_curr_code;
+                public string type;
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class DataAsk
+                {
+                    public string price;
+                    public string quantity;
+                    public string total;
+                }
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class DataBid
+                {
+                    public string price;
+                    public string quantity;
+                    public string total;
+                }
+
+                [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+                public class DataHistory
+                {
+                    public string price;
+                    public string quantity;
+                    public string time_local;
+                    public string type;
+                }
+            }
         }
 
-        public updateTickers_response UpdateTickers(string exch_mkt_ids)
+        private static readonly string _data = "data";
+        public DataResponse Data(string exchange_code, string exchange_market, MarketDataType type) => Request<DataResponse>(_data,
+            new KeyValuePair<string, string>[] {
+                KVP("exchange_code", exchange_code),
+                KVP("exchange_market", exchange_market),
+                KVP("type", Enum.GetName(typeof(MarketDataType), type))
+            });
+        public Task<DataResponse> DataAsync(string exchange_code, string exchange_market, MarketDataType type) => RequestAsync<DataResponse>(_data,
+            new KeyValuePair<string, string>[] {
+                KVP("exchange_code", exchange_code),
+                KVP("exchange_market", exchange_market),
+                KVP("type", Enum.GetName(typeof(MarketDataType), type))
+            });
+
+
+        [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+        public class TickerResponse : BaseResponse
         {
-            var url = "updateTickers";
-            var pd = new List<KeyValuePair<string, string>>
+            public List<Ticker> data;
+            public List<object> notifications;
+
+            [JsonObject(MemberSerialization = MemberSerialization.Fields)]
+            public class Ticker
             {
-                new KeyValuePair<string, string>("exch_mkt_ids", exch_mkt_ids)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updateTickers_response>(gr);
+                public string ask;
+                public string bid;
+                public string current_volume;
+                public string exchange;
+                public string high_trade;
+                public string last_trade;
+                public string low_trade;
+                public string market;
+                public string timestamp;
+            }
         }
 
-        public async Task<updateTickers_response> UpdateTickersAsync(string exch_mkt_ids)
+        private static readonly string _ticker = "ticker";
+        public TickerResponse Ticker(string exchange_code, string exchange_market) => Request<TickerResponse>(_ticker,
+            new [] { KVP("exchange_code", exchange_code), KVP("exchange_market", exchange_market) });
+        public Task<TickerResponse> TickerAsync(string exchange_code, string exchange_market) => RequestAsync<TickerResponse>(_ticker,
+            new [] { KVP("exchange_code", exchange_code), KVP("exchange_market", exchange_market) });
+
+
+        #region Private members
+
+
+        private string _key;
+        private string Api_Secret { get; set; }
+
+
+        #region _httpPostRequest{,Async}()
+
+        private string _httpPostRequest(string url, string ua, IEnumerable<KeyValuePair<string, string>> data)
         {
-            var url = "updateTickers";
-            var pd = new List<KeyValuePair<string, string>>
+            using (var client = _prepareClient(ua, _key, Api_Secret))
             {
-                new KeyValuePair<string, string>("exch_mkt_ids", exch_mkt_ids)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<updateTickers_response>(gr);
+                var r = client.PostAsync(Server_Url + url, new FormUrlEncodedContent(data));
+                r.Wait();
+                var response = r.Result;
+                return response.IsSuccessStatusCode ? response.Content.ReadAsStringAsync().Result :
+                    "ERROR:" + response.StatusCode + " " + response.ReasonPhrase + " | " + response.RequestMessage;
+            }
         }
 
-        public orderTypes_response OrderTypes()
+        private async Task<string> _httpPostRequestAsync(string url, string ua, IEnumerable<KeyValuePair<string, string>> data)
         {
-            var url = "orderTypes";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<orderTypes_response>(gr);
+            using (var client = _prepareClient(ua, _key, Api_Secret))
+                return await _processResponseAsync(await client.PostAsync(Server_Url + url, new FormUrlEncodedContent(data)));
         }
 
-        public async Task<orderTypes_response> OrderTypesAsync()
-        {
-            var url = "orderTypes";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<orderTypes_response>(gr);
-        }
+        #endregion _httpPostRequest{,Async}()
 
-        public refreshBalance_response RefreshBalance(string auth_id)
-        {
-            var url = "refreshBalance";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<refreshBalance_response>(gr);
-        }
 
-        public async Task<refreshBalance_response> RefreshBalanceAsync(string auth_id)
-        {
-            var url = "refreshBalance";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<refreshBalance_response>(gr);
-        }
+        #region _processResponseAsync()
 
-        public addAlert_response AddAlert(string exch_code, string market_name, string alert_price,
-            string alert_note = "")
-        {
-            var url = "addAlert";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exch_code", exch_code),
-                new KeyValuePair<string, string>("market_name", market_name),
-                new KeyValuePair<string, string>("alert_price", alert_price),
-                new KeyValuePair<string, string>("alert_note", alert_note)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addAlert_response>(gr);
-        }
+        private static async Task<string> _processResponseAsync(HttpResponseMessage m) => m.IsSuccessStatusCode ?
+            await m.Content.ReadAsStringAsync() : "ERROR:" + m.StatusCode + " " + m.ReasonPhrase + " | " + m.RequestMessage;
 
-        public async Task<addAlert_response> AddAlertAsync(string exch_code, string market_name, string alert_price,
-            string alert_note = "")
-        {
-            var url = "addAlert";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exch_code", exch_code),
-                new KeyValuePair<string, string>("market_name", market_name),
-                new KeyValuePair<string, string>("alert_price", alert_price),
-                new KeyValuePair<string, string>("alert_note", alert_note)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addAlert_response>(gr);
-        }
+        #endregion _processResponseAsync()
 
-        public deleteAlert_response DeleteAlert(string alert_id)
-        {
-            var url = "deleteAlert";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("alert_id", alert_id)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<deleteAlert_response>(gr);
-        }
 
-        public async Task<deleteAlert_response> DeleteAlertAsync(string alert_id)
-        {
-            var url = "deleteAlert";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("alert_id", alert_id)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<deleteAlert_response>(gr);
-        }
+        #region _prepareClient()
 
-        public addApiKey_response AddApiKey(string api_key, string api_secret, string api_exch_id, string api_nickname)
-        {
-            var url = "addApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("api_key", api_key),
-                new KeyValuePair<string, string>("api_secret", api_secret),
-                new KeyValuePair<string, string>("api_exch_id", api_exch_id),
-                new KeyValuePair<string, string>("api_nickname", api_nickname)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addApiKey_response>(gr);
-        }
-
-        public async Task<addApiKey_response> AddApiKeyAsync(string api_key, string api_secret, string api_exch_id,
-            string api_nickname)
-        {
-            var url = "addApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("api_key", api_key),
-                new KeyValuePair<string, string>("api_secret", api_secret),
-                new KeyValuePair<string, string>("api_exch_id", api_exch_id),
-                new KeyValuePair<string, string>("api_nickname", api_nickname)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addApiKey_response>(gr);
-        }
-
-        public deleteApiKey_response DeleteApiKey(string auth_id)
-        {
-            var url = "deleteApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<deleteApiKey_response>(gr);
-        }
-
-        public async Task<deleteApiKey_response> DeleteApiKeyAsync(string auth_id)
-        {
-            var url = "deleteApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<deleteApiKey_response>(gr);
-        }
-
-        public activateApiKey_response ActivateApiKey(string auth_id, bool auth_active = true)
-        {
-            var url = "activateApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id),
-                new KeyValuePair<string, string>("auth_active", Convert.ToInt32(auth_id).ToString())
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<activateApiKey_response>(gr);
-        }
-
-        public async Task<activateApiKey_response> ActivateApiKeyAsync(string auth_id, bool auth_active = true)
-        {
-            var url = "activateApiKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id),
-                new KeyValuePair<string, string>("auth_active", Convert.ToInt32(auth_id).ToString())
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<activateApiKey_response>(gr);
-        }
-
-        public activateTradingKey_response ActivateTradingKey(string auth_id, bool auth_trade = true)
-        {
-            var url = "activateTradingKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id),
-                new KeyValuePair<string, string>("auth_trade", Convert.ToInt32(auth_id).ToString())
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<activateTradingKey_response>(gr);
-        }
-
-        public async Task<activateTradingKey_response> ActivateTradingKeyAsync(string auth_id, bool auth_trade = true)
-        {
-            var url = "activateTradingKey";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id),
-                new KeyValuePair<string, string>("auth_trade", Convert.ToInt32(auth_id).ToString())
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<activateTradingKey_response>(gr);
-        }
-
-        public addOrder_response AddOrder(int auth_id, int exch_id, int mkt_id, int order_type_id, int price_type_id,
-            decimal limit_price, decimal order_quantity)
-        {
-            var url = "addOrder";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id.ToString()),
-                new KeyValuePair<string, string>("exch_id", exch_id.ToString()),
-                new KeyValuePair<string, string>("mkt_id", mkt_id.ToString()),
-                new KeyValuePair<string, string>("order_type_id", order_type_id.ToString()),
-                new KeyValuePair<string, string>("price_type_id", price_type_id.ToString()),
-                new KeyValuePair<string, string>("limit_price", limit_price.ToString()),
-                new KeyValuePair<string, string>("order_quantity", order_quantity.ToString())
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addOrder_response>(gr);
-        }
-
-        public async Task<addOrder_response> AddOrderAsync(int auth_id, int exch_id, int mkt_id, int order_type_id,
-            int price_type_id, decimal limit_price, decimal order_quantity)
-        {
-            var url = "addOrder";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("auth_id", auth_id.ToString()),
-                new KeyValuePair<string, string>("exch_id", exch_id.ToString()),
-                new KeyValuePair<string, string>("mkt_id", mkt_id.ToString()),
-                new KeyValuePair<string, string>("order_type_id", order_type_id.ToString()),
-                new KeyValuePair<string, string>("price_type_id", price_type_id.ToString()),
-                new KeyValuePair<string, string>("limit_price", limit_price.ToString()),
-                new KeyValuePair<string, string>("order_quantity", order_quantity.ToString())
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<addOrder_response>(gr);
-        }
-
-        public cancelOrder_response CancelOrder(int internal_order_id)
-        {
-            var url = "cancelOrder";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("internal_order_id", internal_order_id.ToString())
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<cancelOrder_response>(gr);
-        }
-
-        public async Task<cancelOrder_response> CancelOrderAsync(int internal_order_id)
-        {
-            var url = "cancelOrder";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("internal_order_id", internal_order_id.ToString())
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<cancelOrder_response>(gr);
-        }
-
-        public exchanges_response Exchanges()
-        {
-            var url = "exchanges";
-            var gr = HttpPostRequest(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<exchanges_response>(gr);
-        }
-
-        public async Task<exchanges_response> ExchangesAsync()
-        {
-            var url = "exchanges";
-            var gr = await HttpPostRequestAsync(url, User_Agent, new List<KeyValuePair<string, string>>());
-            return JsonConvert.DeserializeObject<exchanges_response>(gr);
-        }
-
-        public markets_response Markets(string exchange_code)
-        {
-            var url = "markets";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<markets_response>(gr);
-        }
-
-        public async Task<markets_response> MarketsAsync(string exchange_code)
-        {
-            var url = "markets";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<markets_response>(gr);
-        }
-
-        public data_response Data(string exchange_code, string exchange_market, MarketDataType type)
-        {
-            var url = "data";
-            var typename = Enum.GetName(typeof(MarketDataType), type);
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code),
-                new KeyValuePair<string, string>("exchange_market", exchange_market),
-                new KeyValuePair<string, string>("type", typename)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<data_response>(gr);
-        }
-
-        public async Task<data_response> DataAsync(string exchange_code, string exchange_market, MarketDataType type)
-        {
-            var url = "data";
-            var typename = Enum.GetName(typeof(MarketDataType), type);
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code),
-                new KeyValuePair<string, string>("exchange_market", exchange_market),
-                new KeyValuePair<string, string>("type", typename)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<data_response>(gr);
-        }
-
-        public ticker_response Ticker(string exchange_code, string exchange_market)
-        {
-            var url = "ticker";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code),
-                new KeyValuePair<string, string>("exchange_market", exchange_market)
-            };
-            var gr = HttpPostRequest(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<ticker_response>(gr);
-        }
-
-        public async Task<ticker_response> TickerAsync(string exchange_code, string exchange_market)
-        {
-            var url = "ticker";
-            var pd = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("exchange_code", exchange_code),
-                new KeyValuePair<string, string>("exchange_market", exchange_market)
-            };
-            var gr = await HttpPostRequestAsync(url, User_Agent, pd);
-            return JsonConvert.DeserializeObject<ticker_response>(gr);
-        }
-
-        private string HttpPostRequest(string url, string ua, List<KeyValuePair<string, string>> postdata)
+        private static HttpClient _prepareClient(string userAgent, string k, string s)
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", ua);
-            client.DefaultRequestHeaders.Add("X-API-KEY", Api_Key);
-            client.DefaultRequestHeaders.Add("X-API-SECRET", Api_Secret);
-
-            var content = new FormUrlEncodedContent(postdata);
-
-            var response = client.PostAsync(Server_Url + url, content).Result;
-
-            return response.IsSuccessStatusCode
-                ? response.Content.ReadAsStringAsync().Result
-                : "ERROR:" + response.StatusCode + " " + response.ReasonPhrase + " | " + response.RequestMessage;
+            client.DefaultRequestHeaders.Add("User-Agent", userAgent);
+            client.DefaultRequestHeaders.Add("X-API-KEY", k);
+            client.DefaultRequestHeaders.Add("X-API-SECRET", s);
+            return client;
         }
 
-        private async Task<string> HttpPostRequestAsync(string url, string ua,
-            List<KeyValuePair<string, string>> postdata)
-        {
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", ua);
-            client.DefaultRequestHeaders.Add("X-API-KEY", Api_Key);
-            client.DefaultRequestHeaders.Add("X-API-SECRET", Api_Secret);
+        #endregion _prepareClient()
 
-            var content = new FormUrlEncodedContent(postdata);
 
-            var response = await client.PostAsync(Server_Url + url, content);
+        #region Private constants
 
-            return response.IsSuccessStatusCode
-                ? await response.Content.ReadAsStringAsync()
-                : "ERROR:" + response.StatusCode + " " + response.ReasonPhrase + " | " + response.RequestMessage;
-        }
+        #endregion Private constants
+
+
+        #endregion Private members
+
     }
 }
